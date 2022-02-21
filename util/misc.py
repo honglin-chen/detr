@@ -16,6 +16,7 @@ from typing import Optional, List
 import torch
 import torch.distributed as dist
 from torch import Tensor
+import pdb
 
 # needed due to empty tensor bug in pytorch and torchvision 0.5
 import torchvision
@@ -271,6 +272,12 @@ def collate_fn(batch):
     batch[0] = nested_tensor_from_tensor_list(batch[0])
     return tuple(batch)
 
+
+def tdw_collate_fn(batch):
+    tensor_list = [i[0][None] for i in batch]
+    samples = torch.cat(tensor_list, 0)
+    targets = [i[1] for i in batch]
+    return samples, targets
 
 def _max_by_axis(the_list):
     # type: (List[List[int]]) -> List[int]

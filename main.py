@@ -15,7 +15,7 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
-
+import pdb
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -152,10 +152,13 @@ def main(args):
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
 
+
+    collate_fn = utils.tdw_collate_fn if args.dataset_file == 'tdw' else utils.collate_fn
+
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
+                                   collate_fn=collate_fn, num_workers=args.num_workers)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+                                 drop_last=False, collate_fn=collate_fn, num_workers=args.num_workers)
 
     if args.dataset_file == "coco_panoptic":
         # We also evaluate AP during panoptic training, on original coco DS
@@ -183,7 +186,7 @@ def main(args):
 
     if args.eval:
         test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
-                                              data_loader_val, base_ds, device, args.output_dir)
+                                              data_loader_val, base_ds, device, args.output_dir, args.dataset_file)
         if args.output_dir:
             utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
         return
@@ -194,7 +197,7 @@ def main(args):
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch,
+            model, criterion, data_loader_train, optimizer, device, epoch, args.dataset_file,
             args.clip_max_norm)
         lr_scheduler.step()
         if args.output_dir:
@@ -212,7 +215,7 @@ def main(args):
                 }, checkpoint_path)
 
         test_stats, coco_evaluator = evaluate(
-            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
+            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir, args.dataset_file
         )
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
