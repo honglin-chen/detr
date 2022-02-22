@@ -39,15 +39,16 @@ class TDWDataset(Dataset):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        file_name = self.file_list[idx]
-        raw_image_1, image_1 = self.read_frame(file_name, frame_idx=self.frame_idx, transform=self.transform)
 
-        try:
-            raw_image_2, image_2 = self.read_frame(file_name, frame_idx=self.frame_idx+self.delta_time, transform=self.transform)
-        except Exception as e:
-            image_2 = image_1.clone()
-            raw_image_1 = raw_image_1.clone()
-            print('Encounter error: ', e)
+        valid = False
+        while not valid:
+            try:
+                file_name = self.file_list[idx]
+                raw_image_1, image_1 = self.read_frame(file_name, frame_idx=self.frame_idx, transform=self.transform)
+                raw_image_2, image_2 = self.read_frame(file_name, frame_idx=self.frame_idx+self.delta_time, transform=self.transform)
+            except Exception as e:
+                idx = idx + 1
+                print('Encounter error: ', e)
 
         images = torch.cat([image_1[None], image_2[None]], 0)
         raw_images =  torch.cat([raw_image_1[None], raw_image_2[None]], 0)
@@ -57,13 +58,13 @@ class TDWDataset(Dataset):
 
         h, w = image_1.shape[-2:]
 
-        if self.supervision == 'sinobj':
+        if self.supervision in ['single_gt', 'raft']:
             mask = gt_moving
             labels = torch.as_tensor([0]).long()
             if gt_moving.sum() == 0:
                 return None
 
-        elif self.supervision == 'allobj':
+        elif self.supervision == 'all_gt':
             unique = segment_map.unique()
             unique = unique[unique > 0]
             if len(unique) > 6: # invalid image file with more than 5 objects
