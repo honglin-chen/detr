@@ -16,7 +16,6 @@ from typing import Optional, List
 import torch
 import torch.distributed as dist
 from torch import Tensor
-import pdb
 
 # needed due to empty tensor bug in pytorch and torchvision 0.5
 import torchvision
@@ -274,8 +273,11 @@ def collate_fn(batch):
 
 
 def tdw_collate_fn(batch):
-    tensor_list = [i[0][None] for i in batch]
-    samples = torch.cat(tensor_list, 0)
+    batch = [b for b in batch if b is not None]
+    image_list = [i[0][0:1] for i in batch] # select the first frame  # [1, 3, H, W]
+    images = torch.cat(image_list, 0)  # [B, 3, H, W]
+    masks = torch.zeros_like(images)[:, 0]  # [B, H, W]
+    samples = NestedTensor(images, mask=masks)
     targets = [i[1] for i in batch]
     return samples, targets
 

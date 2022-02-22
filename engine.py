@@ -13,9 +13,8 @@ import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 from util.misc import NestedTensor
-PIXEL_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-PIXEL_STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
-
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
@@ -25,21 +24,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     criterion.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    # metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
 
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
-        # # specific for TDW
-        if dataset == 'tdw':
-            original_image = samples.clone()
-            images = samples[:, 0] / 255.
-            images = (images - PIXEL_MEAN.to(images.device)) / PIXEL_STD.to(images.device)
-            masks = torch.cat([x['mask'] for x in targets], 0)
-            samples = NestedTensor(images, mask=masks)  # use the first frame
 
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
@@ -68,7 +59,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         optimizer.step()
 
         metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
-        # metric_logger.update(class_error=loss_dict_reduced['class_error'])
+        metric_logger.update(class_error=loss_dict_reduced['class_error'])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -82,7 +73,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     criterion.eval()
 
     metric_logger = utils.MetricLogger(delimiter="  ")
-    # metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
     header = 'Test:'
 
     iou_types = tuple(k for k in ('segm', 'bbox') if k in postprocessors.keys())
@@ -101,14 +92,6 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        # specific for TDW
-        if dataset == 'tdw':
-            original_image = samples.clone()
-            images = samples[:, 0] / 255.
-            images = (images - PIXEL_MEAN.to(images.device)) / PIXEL_STD.to(images.device)
-            masks = torch.cat([x['mask'] for x in targets], 0)
-            samples = NestedTensor(images, mask=masks)  # use the first frame
-
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
@@ -122,11 +105,27 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         metric_logger.update(loss=sum(loss_dict_reduced_scaled.values()),
                              **loss_dict_reduced_scaled,
                              **loss_dict_reduced_unscaled)
-        # metric_logger.update(class_error=loss_dict_reduced['class_error'])
+        metric_logger.update(class_error=loss_dict_reduced['class_error'])
 
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         results = postprocessors['bbox'](outputs, orig_target_sizes)
-        print('max score',  len(results), results[0]['scores'].max())
+
+        # # Visualization
+        # plt.figure(figsize=(4, 4))
+        # idx = 0
+        # plt.imshow(targets[idx]['raw_images'][0].permute(1, 2, 0).cpu())
+        # pred_bboxes = results[idx]['boxes']
+        # tgt_bboxes = targets[idx]['raw_boxes']
+        #
+        # ax = plt.gca()
+        # for j in range(pred_bboxes.shape[0]):
+        #     plt_boxes(ax, pred_bboxes[j].cpu(), 'b')
+        #
+        # for j in range(tgt_bboxes.shape[0]):
+        #     plt_boxes(ax, tgt_bboxes[j].cpu(), 'r')
+        # plt.show()
+        # plt.close()
+
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
@@ -170,3 +169,13 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         stats['PQ_th'] = panoptic_res["Things"]
         stats['PQ_st'] = panoptic_res["Stuff"]
     return stats, coco_evaluator
+
+
+def plt_boxes(ax, box, color='r'):
+    x0, y0, x1, y1 = box.unbind(-1)
+    width = x1 - x0
+    height = y1 - y0
+    rect = patches.Rectangle((x0, y0), width, height, linewidth=1, edgecolor=color, facecolor='none')
+    ax.add_patch(rect)
+
+
