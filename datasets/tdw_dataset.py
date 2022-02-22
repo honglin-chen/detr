@@ -46,6 +46,7 @@ class TDWDataset(Dataset):
                 file_name = self.file_list[idx]
                 raw_image_1, image_1 = self.read_frame(file_name, frame_idx=self.frame_idx, transform=self.transform)
                 raw_image_2, image_2 = self.read_frame(file_name, frame_idx=self.frame_idx+self.delta_time, transform=self.transform)
+                valid = True
             except Exception as e:
                 idx = idx + 1
                 print('Encounter error: ', e)
