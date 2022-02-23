@@ -25,6 +25,7 @@ class TDWDataset(Dataset):
         meta_path = os.path.join(dataset_dir, 'meta.json')
         self.meta = json.loads(Path(meta_path).open().read())
 
+        self.flow_threshold = 0.5
         if self.training:
             self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'model_split_[0-9]*', '*[0-8]'))
         else:
@@ -60,9 +61,12 @@ class TDWDataset(Dataset):
         h, w = image_1.shape[-2:]
 
         if self.supervision in ['single_gt', 'raft']:
-            mask = gt_moving
+            if self.supervision == 'single_gt':
+                mask = gt_moving
+            else:
+                mask = self.prepare_motion_segments(file_name).unsqueeze(0)
             labels = torch.as_tensor([0]).long()
-            if gt_moving.sum() == 0:
+            if mask.sum() == 0:
                 return None
 
         elif self.supervision == 'all_gt':
@@ -70,9 +74,6 @@ class TDWDataset(Dataset):
             unique = unique[unique > 0]
             if len(unique) > 6: # invalid image file with more than 5 objects
                 print('Having more than 6 objects')
-                plt.imshow(segment_map)
-                plt.savefig('%d.png' % sum(unique))
-                plt.close()
                 return None
             mask = unique[:, None, None] == segment_map
             labels = torch.as_tensor([0] * mask.shape[0]).long()
@@ -86,10 +87,11 @@ class TDWDataset(Dataset):
         boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
 
         targets = {
-            'mask': mask,
+            'masks': mask,
             'boxes': boxes,
             'raw_boxes': raw_boxes,
             'orig_size': torch.as_tensor([int(h), int(w)]),
+            'size': torch.as_tensor([int(h), int(w)]),
             'image_id':  torch.as_tensor([idx]),
             'labels': labels,
             'raw_images': raw_images
@@ -103,7 +105,9 @@ class TDWDataset(Dataset):
             return read_image(image_path)
         else:
             raw_image = Image.open(image_path)
-            return T.ToTensor()(raw_image), transform(raw_image)
+            output = T.ToTensor()(raw_image), transform(raw_image)
+            raw_image.close()
+            return output
 
     @staticmethod
     def _object_id_hash(objects, val=256, dtype=torch.long):
@@ -134,6 +138,17 @@ class TDWDataset(Dataset):
 
         return raw_segment_map, segment_map, gt_moving
 
+    @staticmethod
+    def flow_to_segment(flow, thresh):
+        magnitude = (flow ** 2).sum(1) ** 0.5
+        motion_segment = (magnitude > thresh).unsqueeze(1)
+        return magnitude, motion_segment
+
+    def prepare_motion_segments(self, file_name):
+        load_path = file_name.replace('/images/', '/flows/') + '.pt'
+        raft_flow = torch.load(load_path)
+        _, motion_segment = self.flow_to_segment(raft_flow[None], thresh=self.flow_threshold)
+        return motion_segment[0, 0]
 
 def build_tdw_dataset(image_set, supervision, dataset_dir='/data2/honglinc/tdw_playroom_small'):
     if image_set == 'train':

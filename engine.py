@@ -110,25 +110,51 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         results = postprocessors['bbox'](outputs, orig_target_sizes)
 
-        # # Visualization
-        # plt.figure(figsize=(4, 4))
-        # idx = 0
-        # plt.imshow(targets[idx]['raw_images'][0].permute(1, 2, 0).cpu())
-        # pred_bboxes = results[idx]['boxes']
-        # tgt_bboxes = targets[idx]['raw_boxes']
-        #
-        # ax = plt.gca()
-        # for j in range(pred_bboxes.shape[0]):
-        #     plt_boxes(ax, pred_bboxes[j].cpu(), 'b')
-        #
-        # for j in range(tgt_bboxes.shape[0]):
-        #     plt_boxes(ax, tgt_bboxes[j].cpu(), 'r')
-        # plt.show()
-        # plt.close()
+        '''
+        
+        # Visualization
+        threshold = 0.85
+
+        plt.figure(figsize=(10, 10))
+
+
+        for idx in range(9):
+            plt.subplot(3, 3, idx+1)
+            scores = results[idx]['scores']
+            mask_select = scores > threshold
+
+            plt.imshow(targets[idx]['raw_images'][0].permute(1, 2, 0).cpu())
+            pred_bboxes = results[idx]['boxes'][mask_select]
+            tgt_bboxes = targets[idx]['raw_boxes']
+
+            ax = plt.gca()
+            for j in range(pred_bboxes.shape[0]):
+                plt_boxes(ax, pred_bboxes[j].cpu(), 'b')
+
+            for j in range(tgt_bboxes.shape[0]):
+                plt_boxes(ax, tgt_bboxes[j].cpu(), 'r')
+            plt.axis('off')
+        plt.show()
+        plt.close()
+        '''
 
         if 'segm' in postprocessors.keys():
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
+
+        # pdb.set_trace()
+        # threshold = 0.85
+        # idx = 0
+        # scores = results[idx]['scores']
+        # masks = results[idx]['masks']
+        # mask_select = scores > threshold
+        # masks = masks[mask_select]
+        # argmax = masks.argmax(0)
+        # plt.imshow(argmax.cpu())
+        # plt.show()
+        # plt.close()
+
+
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
             coco_evaluator.update(res)

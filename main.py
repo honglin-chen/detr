@@ -16,6 +16,9 @@ from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model
 import pdb
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
