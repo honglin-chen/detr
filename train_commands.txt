@@ -1,0 +1,4 @@
+# DETR mask head training
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 32 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup single_gt --frozen_weights ./output/single_gt_0/checkpoint0099.pth --output_dir ./outputs/mask_single_gt_100
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 16 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup all_gt --frozen_weights ./output/all_gt_0/checkpoint0099.pth --output_dir ./outputs/mask_all_gt_100
