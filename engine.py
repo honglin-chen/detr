@@ -13,9 +13,10 @@ import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 from util.misc import NestedTensor
+from util.miou_metric import measure_miou_metric
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
+import numpy as np
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -88,6 +89,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             output_dir=os.path.join(output_dir, "panoptic_eval"),
         )
 
+    miou_stats = []
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         samples = samples.to(device)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -144,18 +146,54 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
 
+        '''
+        
         # pdb.set_trace()
-        # threshold = 0.85
-        # idx = 0
-        # scores = results[idx]['scores']
-        # masks = results[idx]['masks']
-        # mask_select = scores > threshold
-        # masks = masks[mask_select]
-        # argmax = masks.argmax(0)
-        # plt.imshow(argmax.cpu())
-        # plt.show()
-        # plt.close()
+        def reorder_int_labels(x):
+            _, y = torch.unique(x, return_inverse=True)
+            y -= y.min()
+            return y
+        #
+        #
+        threshold = 0.1
 
+        for idx in range(len(results)):
+
+            scores = results[idx]['scores']
+            masks = results[idx]['masks']
+            # mask_select = scores > threshold
+            # masks = masks[mask_select]
+
+            masks = masks.cuda() * scores[:, None, None, None]
+            masks = torch.cat([torch.zeros_like(masks[0:1]), masks], dim=0)
+
+            pred_segments = masks.argmax(0)
+            gt_segments = targets[idx]['segment_map']
+            pred_segments = reorder_int_labels(pred_segments)
+
+            # pdb.set_trace()
+            # print('Number of unique segments', len(pred_segments.unique()))
+            # plt.subplot(1, 3, 1)
+            #
+            # plt.imshow(targets[idx]['raw_images'][0].permute(1, 2, 0).cpu())
+            # plt.title('Image')
+            # plt.axis('off')
+            # plt.subplot(1, 3, 2)
+            # plt.imshow(gt_segments.cpu())
+            # plt.title('GT segments')
+            # plt.axis('off')
+            # plt.subplot(1, 3, 3)
+            # plt.imshow(pred_segments[0].cpu())
+            # plt.title('Predicted segments')
+            # plt.axis('off')
+            # plt.show()
+            # plt.close()
+
+            miou = measure_miou_metric(pred_segment=pred_segments.int(), gt_segment=gt_segments.int().unsqueeze(-1))
+            miou_stats.append(miou)
+        print('mIoU: ', np.mean(miou_stats), len(miou_stats), threshold)
+
+        '''
 
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
@@ -170,6 +208,9 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                 res_pano[i]["file_name"] = file_name
 
             panoptic_evaluator.update(res_pano)
+
+    # print('Final mIoU: ', np.mean(miou_stats))
+    # pdb.set_trace()
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

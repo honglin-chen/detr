@@ -16,8 +16,7 @@ from PIL import Image
 
 
 class TDWDataset(Dataset):
-    def __init__(self, dataset_dir, training, supervision, delta_time=1, frame_idx=5):
-        self.training = training
+    def __init__(self, dataset_dir, dataset, supervision, delta_time=1, frame_idx=5):
         self.frame_idx = frame_idx
         self.delta_time = delta_time
         self.supervision = supervision
@@ -26,10 +25,21 @@ class TDWDataset(Dataset):
         self.meta = json.loads(Path(meta_path).open().read())
 
         self.flow_threshold = 0.5
-        if self.training:
+        if dataset == 'train':
             self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'model_split_[0-9]*', '*[0-8]'))
-        else:
+        elif dataset == 'val':
+            # pdb.set_trace()
+            # print('warning: using trainval set')
             self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'model_split_[0-3]', '*9'))
+            # self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'model_split_4', '0*[0-4]'))
+        elif dataset == 'test':
+            pdb.set_trace()
+            self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'model_split_val', '*'))
+        elif dataset == 'safari':
+            pdb.set_trace()
+            self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'playroom_simple_v7safari', '*'))
+        else:
+            raise ValueError
 
         self.transform = T.Compose([
             T.ToTensor(),  # divided by 255.
@@ -94,7 +104,8 @@ class TDWDataset(Dataset):
             'size': torch.as_tensor([int(h), int(w)]),
             'image_id':  torch.as_tensor([idx]),
             'labels': labels,
-            'raw_images': raw_images
+            'raw_images': raw_images,
+            'segment_map': segment_map,
         }
         return images, targets
 
@@ -152,9 +163,13 @@ class TDWDataset(Dataset):
 
 def build_tdw_dataset(image_set, supervision, dataset_dir='/data2/honglinc/tdw_playroom_small'):
     if image_set == 'train':
-        return TDWDataset(dataset_dir, training=True, supervision=supervision)
+        return TDWDataset(dataset_dir, dataset='train', supervision=supervision)
     elif image_set == 'val':
-        return TDWDataset(dataset_dir, training=False, supervision=supervision)
+        return TDWDataset(dataset_dir, dataset='val', supervision=supervision)
+    elif image_set == 'test':
+        return TDWDataset(dataset_dir, dataset='test', supervision=supervision)
+    elif image_set == 'safari':
+        return TDWDataset(dataset_dir, dataset='safari', supervision=supervision)
     else:
         raise NotValueError
 

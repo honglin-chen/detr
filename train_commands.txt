@@ -1,4 +1,38 @@
-# DETR mask head training
-CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 32 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup single_gt --frozen_weights ./output/single_gt_0/checkpoint0099.pth --output_dir ./outputs/mask_single_gt_100
+# DETR box head training
+CUDA_VISIBLE_DEVICES=1 python main.py --batch_size 64 --dataset_file tdw --tdw_sup raft --output_dir ./output/raft_0 --resume ./output/raft_0/checkpoint.pth
+CUDA_VISIBLE_DEVICES=2 python main.py --batch_size 64 --dataset_file tdw --tdw_sup all_gt --output_dir ./output/all_gt_0 --resume ./output/all_gt_0/checkpoint.pth
 
-CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 16 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup all_gt --frozen_weights ./output/all_gt_0/checkpoint0099.pth --output_dir ./outputs/mask_all_gt_100
+
+# DETR mask head training
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 16 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup single_gt --frozen_weights ./output/single_gt_0/checkpoint0099.pth --output_dir ./output/mask_single_gt_100
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 16 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup all_gt --frozen_weights ./output/all_gt_0/checkpoint.pth --output_dir ./output/mask_all_gt_final
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=4  --use_env main.py --batch_size 16 --masks --epochs 25 --lr_drop 15 --dataset_file tdw --tdw_sup raft --frozen_weights ./output/raft_0/checkpoint.pth --output_dir ./output/mask_raft_final
+
+
+# Eval
+
+CUDA_VISIBLE_DEVICES=4 python main.py --batch_size 20 --masks --dataset_file tdw --tdw_sup all_gt --eval --resume ./outputs/mask_all_gt_final/checkpoint.pth
+CUDA_VISIBLE_DEVICES=4 python main.py --batch_size 20 --masks --dataset_file tdw --tdw_sup single_gt --eval --resume ./outputs/mask_single_gt_100/checkpoint.pth
+
+
+
+
+# Train val set
+
+Confidence threshold | miou(single_gt) | miou(all_gt)
+0.                      0.3043              0.7218
+0.05                    0.2682              0.8617
+0.01                    0.2338              0.8608
+0.1                     0.2677              0.8617
+0.3                     0.2677              0.8616
+0.5                     0.2675              0.8615
+0.7                     0.2670              0.8614
+
+
+
+# Val set
+
+
+single_gt: 0.3495
+all_gt: 0.8745
