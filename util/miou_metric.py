@@ -34,7 +34,7 @@ def measure_miou_metric(pred_segment, gt_segment, eval_full_res=True):
 
     metric.compute_matched_IoUs(exclude_gt_ids=[0])
 
-    return metric.mean_ious
+    return metric.mean_ious, metric.seg_out
 
 
 class SegmentationMetrics(object):

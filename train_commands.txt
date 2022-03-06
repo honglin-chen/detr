@@ -12,8 +12,9 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node
 
 # Eval
 
-CUDA_VISIBLE_DEVICES=4 python main.py --batch_size 20 --masks --dataset_file tdw --tdw_sup all_gt --eval --resume ./outputs/mask_all_gt_final/checkpoint.pth
+CUDA_VISIBLE_DEVICES=4 python main.py --batch_size 20 --masks --dataset_file tdw --tdw_sup all_gt --eval --resume ./output/mask_all_gt_final/checkpoint.pth
 CUDA_VISIBLE_DEVICES=4 python main.py --batch_size 20 --masks --dataset_file tdw --tdw_sup single_gt --eval --resume ./outputs/mask_single_gt_100/checkpoint.pth
+CUDA_VISIBLE_DEVICES=4 python main.py --batch_size 1 --masks --dataset_file tdw --tdw_sup raft --eval --resume ./output/mask_raft_final/checkpoint.pth
 
 
 

@@ -92,7 +92,14 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
     miou_stats = []
     for samples, targets in metric_logger.log_every(data_loader, 10, header):
         samples = samples.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+        processed_targets = []
+        for t in targets:
+            item = {}
+            for k, v in t.items():
+                item[k] = v if isinstance(v, str) else v.to(device)
+            processed_targets.append(item)
+        targets = processed_targets
 
         outputs = model(samples)
         loss_dict = criterion(outputs, targets)
@@ -114,7 +121,6 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
 
         '''
-        
         
         # Visualization
         threshold = 0.85
@@ -146,7 +152,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             target_sizes = torch.stack([t["size"] for t in targets], dim=0)
             results = postprocessors['segm'](results, outputs, orig_target_sizes, target_sizes)
 
-        '''
+
         
         # pdb.set_trace()
         def reorder_int_labels(x):
@@ -155,7 +161,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             return y
         #
         #
-        threshold = 0.1
+        threshold = 0.
 
         for idx in range(len(results)):
 
@@ -189,11 +195,32 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             # plt.show()
             # plt.close()
 
-            miou = measure_miou_metric(pred_segment=pred_segments.int(), gt_segment=gt_segments.int().unsqueeze(-1))
+            miou, vis = measure_miou_metric(pred_segment=pred_segments.int(), gt_segment=gt_segments.int().unsqueeze(-1))
             miou_stats.append(miou)
-        print('mIoU: ', np.mean(miou_stats), len(miou_stats), threshold)
 
-        '''
+
+            pred, gt, iou = vis
+
+            # plt.subplot(1, 2, 1)
+            # plt.imshow(pred_segments.reshape(512, 512).cpu())
+            # plt.subplot(1, 2, 2)
+            # plt.imshow(gt_segments.cpu())
+            # plt.show()
+            # plt.close()
+
+
+            # save_out = {
+            #     'image': targets[idx]['raw_images'][0],
+            #     'pred_segments': pred[0],
+            #     'gt_segments': gt[0],
+            # }
+            #
+            # file_name = targets[idx]['file_name'].split('/data2/honglinc/tdw_playroom_small/images/')[-1].replace('/', '-')
+            # save_path = os.path.join('./output/TDW_Cylinder_DETR_RAFT', file_name+'.pt')
+            # print('Save to', save_path)
+            # torch.save(save_out, save_path)
+
+        print('mIoU: ', np.mean(miou_stats), len(miou_stats), len(pred[0]))
 
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
@@ -209,7 +236,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
 
             panoptic_evaluator.update(res_pano)
 
-    # print('Final mIoU: ', np.mean(miou_stats))
+    print('Final mIoU: ', np.mean(miou_stats))
     # pdb.set_trace()
 
     # gather the stats from all processes

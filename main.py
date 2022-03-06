@@ -146,7 +146,7 @@ def main(args):
     dataset_train = build_dataset(image_set='train', args=args)
     dataset_val = build_dataset(image_set='val', args=args)
     # dataset_val = build_dataset(image_set='test', args=args)
-    # dataset_val = build_dataset(image_set='safari', args=args)
+    # dataset_val = build_dataset(image_set='cylinder', args=args)
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)

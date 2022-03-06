@@ -38,6 +38,9 @@ class TDWDataset(Dataset):
         elif dataset == 'safari':
             pdb.set_trace()
             self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'playroom_simple_v7safari', '*'))
+        elif dataset == 'cylinder':
+            pdb.set_trace()
+            self.file_list = glob.glob(os.path.join(dataset_dir, 'images', 'cylinder*', '*'))
         else:
             raise ValueError
 
@@ -66,18 +69,17 @@ class TDWDataset(Dataset):
         raw_images =  torch.cat([raw_image_1[None], raw_image_2[None]], 0)
         segment_colors = self.read_frame(file_name.replace('/images/', '/objects/'), frame_idx=self.frame_idx)
         _, segment_map, gt_moving = self.process_segmentation_color(segment_colors, file_name)
-        gt_moving = gt_moving.unsqueeze(0)
 
         h, w = image_1.shape[-2:]
 
         if self.supervision in ['single_gt', 'raft']:
             if self.supervision == 'single_gt':
-                mask = gt_moving
+                mask = gt_moving.unsqueeze(0)
             else:
                 mask = self.prepare_motion_segments(file_name).unsqueeze(0)
             labels = torch.as_tensor([0]).long()
-            if mask.sum() == 0:
-                return None
+            # if mask.sum() == 0:
+            #     return None
 
         elif self.supervision == 'all_gt':
             unique = segment_map.unique()
@@ -106,6 +108,7 @@ class TDWDataset(Dataset):
             'labels': labels,
             'raw_images': raw_images,
             'segment_map': segment_map,
+            'file_name': file_name
         }
         return images, targets
 
@@ -136,16 +139,21 @@ class TDWDataset(Dataset):
         raw_segment_map = raw_segment_map.squeeze(0)
 
         # remove zone id from the raw_segment_map
+
         meta_key = 'playroom_large_v3_images/' + file_name.split('/images/')[-1] + '.hdf5'
-        zone_id = int(self.meta[meta_key]['zone'])
-        raw_segment_map[raw_segment_map == zone_id] = 0
+        if meta_key in self.meta.keys():
+            zone_id = int(self.meta[meta_key]['zone'])
+            raw_segment_map[raw_segment_map == zone_id] = 0
 
         # convert raw segment ids to a range in [0, n]
         _, segment_map = torch.unique(raw_segment_map, return_inverse=True)
         segment_map -= segment_map.min()
 
         # gt_moving_mask
-        gt_moving = raw_segment_map == int(self.meta[meta_key]['moving'])
+        if meta_key in self.meta.keys() and 'moving' in self.meta[meta_key].keys():
+            gt_moving = raw_segment_map == int(self.meta[meta_key]['moving'])
+        else:
+            gt_moving = None
 
         return raw_segment_map, segment_map, gt_moving
 
@@ -162,16 +170,8 @@ class TDWDataset(Dataset):
         return motion_segment[0, 0]
 
 def build_tdw_dataset(image_set, supervision, dataset_dir='/data2/honglinc/tdw_playroom_small'):
-    if image_set == 'train':
-        return TDWDataset(dataset_dir, dataset='train', supervision=supervision)
-    elif image_set == 'val':
-        return TDWDataset(dataset_dir, dataset='val', supervision=supervision)
-    elif image_set == 'test':
-        return TDWDataset(dataset_dir, dataset='test', supervision=supervision)
-    elif image_set == 'safari':
-        return TDWDataset(dataset_dir, dataset='safari', supervision=supervision)
-    else:
-        raise NotValueError
+    return TDWDataset(dataset_dir, dataset=image_set, supervision=supervision)
+
 
 
 if __name__ == "__main__":
